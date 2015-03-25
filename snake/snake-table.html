@@ -1,0 +1,114 @@
+<style type="text/css">
+	* {margin: 0; padding: 0;}
+	body {padding: 100px;}
+	table {
+		border-spacing: 0;
+		border-collapse: collapse;
+	}
+	td {
+		width: 10px;
+		height: 10px;
+		border: 1px solid #ccc;
+	}
+</style>
+
+<body></body>
+
+<script type="text/javascript">
+	var row = 20, column = 20, map = [], timer, snake = [[row/2|0,0]], dir = 'right', speed = 5, food;
+
+	//init the snake map
+	var init = function (row, column){
+		var table = document.createElement('table');
+		for (var i = 0; i < row; i++) {
+			var tr = table.insertRow();
+			map[i] = [];
+			for (var j = 0; j < column; j++) {
+				var td = tr.insertCell();
+				map[i][j] = td;
+			}
+		};
+		document.body.appendChild(table);
+	}
+
+	//draw the snake in the map
+	var draw = function (clear){
+		for (var i = 0; i < snake.length; i++) {
+			map[snake[i][0]][snake[i][1]].style.backgroundColor = '#000';
+		};
+		map[food[0]][food[1]].style.backgroundColor = '#000';
+		clear && (map[clear[0]][clear[1]].style.backgroundColor = 'transparent');
+	}
+
+	//create food
+	var createFood = function (){
+		var x = Math.random()*row|0;
+		var y = Math.random()*column|0;
+
+		for (var i = 0; i < snake.length; i++) {
+			if (snake[i][0] === x && snake[i][1] === y)  return createFood();
+		};
+
+		food = [x, y];
+	}
+
+	var move = function (){
+
+		switch (dir){
+			case 'up': 
+				snake.unshift([snake[0][0]-1, snake[0][1]]); break;
+			case 'down':
+				snake.unshift([snake[0][0]+1, snake[0][1]]); break;
+			case 'left':
+				snake.unshift([snake[0][0], snake[0][1]-1]); break;
+			case 'right':
+				snake.unshift([snake[0][0], snake[0][1]+1]); break;
+			default:
+				throw 'unknow error!';
+		}
+
+		//judge game over
+		if (snake[0][0] >= row || snake[0][0]<0 || snake[0][1] >= column || snake[0][1] < 0) {
+			clearTimeout(timer);
+			return alert('game over!');
+		}
+		for (var i = 1; i < snake.length; i++) {
+			if (snake[i][0] === snake[0][0] && snake[i][1] === snake[0][1]) {
+				clearTimeout(timer);
+				return alert('game over!');
+			}
+		};
+
+		//eat the food
+		if (snake[0][0] === food[0] && snake[0][1] === food[1]) {
+			createFood();
+			draw();
+		}else {
+			draw(snake.pop());
+		}
+
+		timer = setTimeout(move, 1000/speed);
+	}
+
+	//init map food snake
+	init(row, column), createFood(), draw();
+	timer = setTimeout(move, 1000/speed);
+
+	//key control
+	document.addEventListener('keydown', function (e){
+		switch (e.keyCode){
+			case 38:
+				if (dir === 'down' && snake.length>=2) return;
+				return dir = 'up'; 
+			case 40: 
+				if (dir === 'up' && snake.length >= 2) return;
+				return dir = 'down';
+			case 37:
+				if (dir === 'right' && snake.length >= 2) return;
+				return dir = 'left'; 
+			case 39:
+				if (dir === 'left' && snake.length >= 2) return;
+				return dir = 'right'; 
+		}
+	})
+</script>
