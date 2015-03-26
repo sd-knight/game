@@ -1,0 +1,115 @@
+<style type="text/css">
+	canvas {
+		border: 1px solid #ddd;
+	}
+</style>
+
+<canvas id="canvas"></canvas>
+
+<script type="text/javascript">
+	var canvas = document.getElementById('canvas'),
+		ctx = canvas.getContext('2d'),
+		map = [],
+		snake = [],
+		food = [],
+		dir = 'right',
+		speed = 5,
+		width = 50,
+		height = 50,
+		timer;
+
+	//init the canvas
+	var init = function (){
+		canvas.width = width*10;
+		canvas.height = height*10;
+		ctx.scale(10, 10);
+		snake = [[0, height/2|0]];
+		createFood();
+		draw();
+
+		timer = setTimeout(move, 1000/speed);
+	}
+
+	var createFood = function (){
+		var x = Math.random()*width|0;
+		var y = Math.random()*height|0;
+
+		for (var i = 0; i < snake.length; i++) {
+			if ( x === snake[i][0] && y === snake[i][1]) return createFood();
+		};
+		food = [x, y];
+	}
+
+	var draw = function (){
+		ctx.clearRect(0, 0, width*5, height*5);
+
+		for (var i = 0; i < snake.length; i++) {
+			ctx.fillRect(snake[i][0], snake[i][1], 1, 1);
+		};
+
+		ctx.fillRect(food[0], food[1], 1, 1);
+	}
+
+	var move = function (){
+		switch (dir){
+			case 'left':
+				snake.unshift( [ snake[0][0]-1, snake[0][1] ] );
+				break;
+			case 'up':
+				snake.unshift( [ snake[0][0], snake[0][1]-1 ] );
+				break;
+			case 'right':
+				snake.unshift( [ snake[0][0]+1, snake[0][1] ] );
+				break;
+			case 'down':
+				snake.unshift( [ snake[0][0], snake[0][1]+1 ] );
+				break;
+			default:
+				throw error('unknow error!');
+		}
+
+		//eat the food
+		if ( food[0] === snake[0][0] && food[1] === snake[0][1] ){
+			createFood();
+		} else {
+			snake.pop();
+		}
+
+		//game over
+		if ( snake[0][0] < 0 || snake[0][0] >= width || snake[0][1] < 0 || snake[0][1] >= height ){
+			clearTimeout(timer);
+			return alert('game over!');
+		}
+
+		for (var i = 1; i < snake.length; i++) {
+			if ( snake[i][0] === snake[0][0] && snake[i][1] === snake[0][1]){
+				clearTimeout(timer);
+				return alert('game over!');
+			}
+		};
+
+		draw();
+
+		timer = setTimeout(move, 1000/speed);
+	}
+
+	document.addEventListener('keydown', function (e){
+		switch (e.keyCode){
+			case 37:
+				dir = 'left';
+				return;
+			case 38:
+				dir = 'up';
+				return;
+			case 39:
+				dir = 'right';
+				return;
+			case 40:
+				dir = 'down';
+				return;
+		}
+	});
+
+	//startup!
+	init();
+</script>
