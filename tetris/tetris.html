@@ -1,0 +1,401 @@
+<canvas id="canvas"></canvas>
+
+<div style="margin:20px;">分数：<span id="score" style="color:red;">0</span></div>
+
+<script>
+	var	scoreDiv = document.getElementById('score'),
+		canvas = document.getElementById('canvas'),
+		ctx = canvas.getContext('2d'),
+		cols = 20,
+		rows = 40,
+		scale = 10,
+		width = cols*scale,
+		height = rows*scale,
+		score = 0,
+		data = [],
+		active,
+		speed = 6,
+		timer;
+
+	//draw the grid bg
+	var bg = (function(){
+		var c = document.createElement('canvas'),
+			g = c.getContext('2d');
+		c.width = width;
+		c.height = height;
+
+		g.strokeStyle = '#ddd';
+
+		g.beginPath();
+		for (var i = 0; i <= width; i+=scale) {
+			g.moveTo(i, 0);
+			g.lineTo(i, height);
+		};
+		for (var i = 0; i <= height; i+=scale) {
+			g.moveTo(0, i);
+			g.lineTo(width, i);
+		};
+
+		g.stroke();
+
+		return c;
+	})();
+
+	var map = (function(){
+
+		var c = document.createElement('canvas'),
+			g = c.getContext('2d');
+
+		c.width = width;
+		c.height = height;
+		g.scale(scale, scale);
+
+		for (var i = 0; i <= rows; i++) {
+
+			data[i] = [];
+
+			for (var j = 0; j < cols; j++) {
+
+				data[i][j] = false;
+
+			};
+		};
+
+		function draw (){
+			g.clearRect(0, 0, width, height);
+			for (var i = 1; i <= rows; i++) {
+				for (var j = 0; j < cols; j++) {
+					if ( data[i][j] ) {
+						g.fillRect(j, i, 1, 1);
+					}
+				};
+			};
+			compound();
+		}
+
+		function mapdown (h){
+			for (var i = h; i > 0; i--) {
+				for (var j = 0; j < cols; j++) {
+					data[i][j] = data[i-1][j];
+				};
+			};
+			draw();
+		}
+
+		function add (coord){
+			clearTimeout(timer);
+			if ( Array.isArray( coord[0] ) ) {
+				for (var i = 0; i < coord.length; i++) {
+					data[coord[i][1]][coord[i][0]] = true;
+				};
+			} else {
+				data[coord[1]][coord[0]] = true;
+			}
+			
+			active = shape.createShape();
+			draw();
+			check();
+		}
+
+		function check (){
+			var score = [], i, full, over;
+
+			//game over
+			over = data[0].some(function (v){
+				return v;
+			});
+			if ( over ){
+				clearTimeout(timer);
+				return alert('game over!');
+			}
+			//if get score
+			for (var i = data.length-1; i > 0; i--) {
+				full = data[i].every(function (v){
+					return v;
+				});
+				if (full) score.push(i);
+			};
+			if (score.length > 0) {
+				getScore(score);
+			} else {
+				document.addEventListener('keydown', keydown);
+				timer = setTimeout(function(){active.move()}, 1000/speed);
+			}
+		}
+
+		function getScore (indexs){
+			var c = 0, w = 0, i = indexs.shift();
+			clearTimeout(timer);
+
+			function clear(){
+				requestAnimationFrame(function animate(){
+					g.clearRect(0, i, w, 1);
+					compound();
+					if (++w > cols){
+						score += ++c;
+						mapdown(i);
+						if ( i = indexs.shift() ) {
+							i += c;
+							w = 0;
+							clear();
+						} else {
+							active = shape.createShape();
+							document.addEventListener('keydown', keydown);
+							scoreDiv.textContent = score;
+							timer = setTimeout(function(){active.move()}, 1000/speed);
+						}
+					} else {
+						requestAnimationFrame( animate );
+					}
+				})
+			}
+
+			clear();
+		}
+
+		return {
+			canvas: c,
+			add: add
+		}
+
+	})();
+
+	var shape = (function(){
+		var c = document.createElement('canvas'),
+			g = c.getContext('2d');
+		c.width = width;
+		c.height = height;
+		g.scale(scale, scale);
+
+		function draw (){
+			g.clearRect(0, 0, width, height);
+			for (var i = 0; i < active.coords.length; i++){
+				g.fillRect(active.coords[i][0], active.coords[i][1], 1, 1);
+			}
+			compound();
+		}
+
+		//beyond the edge
+		function edge (coords){
+			var dist = 0;
+			for (var i = 0; i < coords.length; i++) {
+				if ( coords[i][0] < 0 ) {
+					dist = coords[i][0] < dist ? coords[i][0] : dist;
+				}
+				if ( coords[i][0] >= cols ){
+					dist = (coords[i][0] - cols + 1) > dist ? (coords[i][0] - cols + 1) : dist;
+				}
+			};
+			if ( dist !== 0 ) {
+				active.centre[0] -= dist;
+				active.countCoords();
+				return true;
+			}
+			return false;
+		}
+
+		//crash the map
+		function crashMap (coords){
+			for (var i = 0; i < coords.length; i++) {
+				if ( data[coords[i][1]][coords[i][0]] ) {
+					return true;
+				} 
+			};
+			return false;
+		}
+
+		var shapes = ['Bar', 'Square', 'T', 'Seven', 'Seven_rev', 'Flash', 'Flash_rev'];
+
+		//seven shape Bar(竖条▎) Square(田■) Seven(正7』) Seven_rev(反7『) T(┥) Flash() Flash_rev()
+		function Shape (shape){
+			this.shape = shape;
+			this.centre = [cols/2|0, 2];
+			this.dir = 1;
+			this.coords = [];
+			this.countCoords();
+		}
+
+		Shape.prototype = {
+			countCoords: function (){
+				var x = this.centre[0],
+					y = this.centre[1];
+
+				switch ( this.shape ) {
+					case 'Bar':
+						if ( this.dir === 1 ) {
+							this.coords = [ [x,y-1], this.centre, [x,y+1], [x,y+2] ]
+						} else {
+							this.coords = [ [x-1,y], this.centre, [x+1,y], [x+2,y] ]
+						}
+					break;
+
+					case 'Flash':
+						if ( this.dir === 1 ) {
+							this.coords = [ [x,y-1], this.centre, [x+1,y], [x+1,y+1] ]
+						} else {
+							this.coords = [ [x+1,y], this.centre, [x,y+1], [x-1,y+1] ]
+						}
+					break;
+
+					case 'Flash_rev':
+						if ( this.dir === 1 ) {
+							this.coords = [ [x,y-1], this.centre, [x-1,y], [x-1,y+1] ]
+						} else {
+							this.coords = [ [x-1,y], this.centre, [x,y+1], [x+1,y+1] ]
+						}
+					break;
+
+					case 'Square':
+						this.coords = [ this.centre, [x+1,y], [x,y+1], [x+1,y+1] ]
+					break;
+
+					case 'Seven':
+						if ( this.dir === 1 ) {
+							this.coords = [ [x-1,y], this.centre, [x,y-1], [x,y-2] ]
+						} else if ( this.dir === 2 ) {
+							this.coords = [ [x,y-1], this.centre, [x+1,y], [x+2,y] ]
+						} else if ( this.dir === 3 ) {
+							this.coords = [ [x+1,y], this.centre, [x,y+1], [x,y+2] ]
+						} else {
+							this.coords = [ [x,y+1], this.centre, [x-1,y], [x-2,y] ]
+						}
+					break;
+
+					case 'Seven_rev':
+						if ( this.dir === 1 ) {
+							this.coords = [ [x+1,y], this.centre, [x,y+1], [x,y+2] ]
+						} else if ( this.dir === 2 ) {
+							this.coords = [ [x,y+1], this.centre, [x-1,y], [x-2,y] ]
+						} else if ( this.dir === 3 ) {
+							this.coords = [ [x-1,y], this.centre, [x,y-1], [x,y-2] ]
+						} else {
+							this.coords = [ [x,y-1], this.centre, [x+1,y], [x+2,y] ]
+						}
+					break;
+
+					case 'T':
+						if ( this.dir === 1 ) {
+							this.coords = [ [x-1,y], this.centre, [x,y+1], [x+1,y] ]
+						} else if ( this.dir === 2 ) {
+							this.coords = [ [x,y-1], this.centre, [x-1,y], [x,y+1] ]
+						} else if ( this.dir === 3 ) {
+							this.coords = [ [x+1,y], this.centre, [x,y-1], [x-1,y] ]
+						} else {
+							this.coords = [ [x,y+1], this.centre, [x+1,y], [x,y-1] ]
+						}
+					break;
+				}
+			},
+
+			rotate: function (){
+				var rb = this.dir;
+				switch ( this.shape ) {
+					case 'Bar':
+					case 'Flash':
+					case 'Flash_rev':
+						this.dir = rb === 1 ? 2 : 1;
+					break;
+					case 'T':
+					case 'Seven':
+					case 'Seven_rev':
+						this.dir++;
+						if ( this.dir > 4 ) this.dir = 1;
+					break;
+				}
+				this.countCoords();
+				edge( this.coords );
+				if ( crashMap(this.coords) ) {
+					this.dir = rb;
+					this.countCoords();
+				}
+				draw();
+			},
+
+			move: function (dir){
+				if ( dir === 'left' ){
+					this.centre[0] -= 1;
+					this.countCoords();
+					if ( crashMap(this.coords) ) {
+						this.centre[0] += 1;
+						this.countCoords();
+					}
+					edge( this.coords );
+					draw();
+					return;
+				} else if (dir === 'right') {
+					this.centre[0] += 1;
+					this.countCoords();
+					if ( crashMap(this.coords) ) {
+						this.centre[0] -= 1;
+						this.countCoords();
+					}
+					edge( this.coords );
+					draw();
+					return;
+				}
+				for (var i = 0; i < this.coords.length; i++) {
+					if ( this.coords[i][1]+1 === rows || data[this.coords[i][1]+1][this.coords[i][0]] ) {
+						g.clearRect(0, 0, width, height);
+						document.removeEventListener('keydown', keydown);
+						return map.add( this.coords );
+					}
+				};
+				this.centre[1] += 1;
+				this.countCoords();
+				draw();
+				if (dir === 'down') return;
+				timer = setTimeout(function(){active.move()}, 1000/speed);
+			},
+		}
+
+		function createShape () {
+			return new Shape(shapes[Math.random()*7|0]);
+		}
+
+		return {
+			canvas: c,
+			createShape: createShape
+		}
+	})();
+
+	//init the canvas and the map
+	var init = function (){
+		canvas.width = width;
+		canvas.height = height;
+
+		active = shape.createShape();
+		compound();
+
+		timer = setTimeout(function(){active.move()}, 1000/speed);
+	}
+
+	//draw the canvas
+	var compound = function (){
+		ctx.clearRect(0, 0, width, height);
+		ctx.drawImage(bg, 0, 0);
+		ctx.drawImage(shape.canvas, 0, 0);
+		ctx.drawImage(map.canvas, 0, 0, width, height, 0, 0, width, height);
+	}
+
+	//keyboard control
+	function keydown (e){
+		switch (e.keyCode){
+			case 37:
+				active.move('left');
+				break;
+			case 38:
+				active.rotate();
+				break;
+			case 39:
+				active.move('right');
+				break;
+			case 40:
+				active.move('down');
+				break;
+		}
+	}
+	document.addEventListener('keydown', keydown);
+
+	//startup!
+	init();
+</script>
